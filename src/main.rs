@@ -1,26 +1,25 @@
-use std::{
-    path::Path,
-    process::Command,
-};
+use std::{path::Path, process::Command};
 fn git_push(repo_path: &str, remote: &str, branch: &str) -> Result<(), Box<dyn std::error::Error>> {
     let repo_path = Path::new(repo_path);
 
     if !repo_path.exists() || !repo_path.is_dir() {
         return Err(format!("Invalid repository path: {}", repo_path.display()).into());
     }
-
-    // Check if there are changes to push
-    let status_output = Command::new("git")
-        .current_dir(repo_path)
-        .args(&["status", "--porcelain"])
-        .output()?;
-
-    if status_output.stdout.is_empty() {
-        println!("No changes to push.");
-        return Ok(());
+    let mut binding = Command::new("git");
+    let command = binding.current_dir(repo_path);
+    let status_output = command.args(&["status", "--porcelain"]).output();
+    match status_output {
+        Ok(status_output) => {
+            if status_output.stdout.is_empty() {
+                println!("No changes to push.");
+                return Ok(());
+            }
+        }
+        Err(error) => {
+            eprint!("{}", error);
+        }
     }
 
-    // Show what's being pushed
     println!("Changes to be pushed:");
     let diff_output = Command::new("git")
         .current_dir(repo_path)
@@ -28,25 +27,37 @@ fn git_push(repo_path: &str, remote: &str, branch: &str) -> Result<(), Box<dyn s
         .output();
     match diff_output {
         Ok(_op) => {
-            let commit=Command::new("git").current_dir(repo_path).args(&["commit","-m","committed by code"]).output()?;
-            let push_output = Command::new("git")
+            let commit = Command::new("git")
                 .current_dir(repo_path)
-                .args(&["push", "-v", remote, branch])
-                .output()?;
+                .args(&["commit", "-m", "committed by code"])
+                .output();
+            match commit {
+                Ok(commit_op) => {
+                    println!("commit status:{}", commit_op.status);
+                    let push_output = Command::new("git")
+                        .current_dir(repo_path)
+                        .args(&["push", "-v", remote, branch])
+                        .output()?;
 
-            println!("Git push output:");
-            println!("stdout: {}", String::from_utf8_lossy(&push_output.stdout));
-            println!("stderr: {}", String::from_utf8_lossy(&push_output.stderr));
+                    println!("Git push output:");
+                    println!("stdout: {}", String::from_utf8_lossy(&push_output.stdout));
+                    println!("stderr: {}", String::from_utf8_lossy(&push_output.stderr));
 
-            if push_output.status.success() {
-                println!("Git push command executed successfully.");
-                Ok(())
-            } else {
-                Err(format!(
-                    "Git push failed: {}",
-                    String::from_utf8_lossy(&push_output.stderr)
-                )
-                .into())
+                    if push_output.status.success() {
+                        println!("Git push command executed successfully.");
+                        Ok(())
+                    } else {
+                        Err(format!(
+                            "Git push failed: {}",
+                            String::from_utf8_lossy(&push_output.stderr)
+                        )
+                        .into())
+                    }
+                }
+                Err(error) => {
+                    eprint!("{}", error);
+                    Err(format!("{}", error).into())
+                }
             }
         }
         Err(error) => {
