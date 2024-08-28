@@ -57,6 +57,7 @@ fn git_push(repo_path: &str, remote: &str, branch: &str) -> Result<(), Box<dyn s
         Ok(status_output) => {
             if status_output.stdout.is_empty() {
                 println!("No changes to push.");
+                println!("Git Status:{:?}",status_output);
                 return Ok(());
             }
         }
