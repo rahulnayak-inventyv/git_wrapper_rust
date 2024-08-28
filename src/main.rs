@@ -29,7 +29,6 @@ fn git_push(repo_path: &str, remote: &str, branch: &str) -> Result<(), Box<dyn s
     match diff_output {
         Ok(_op) => {
             let commit=Command::new("git").current_dir(repo_path).args(&["commit","-m","committed by code"]).output()?;
-            println!("=============>{:?}",commit);
             let push_output = Command::new("git")
                 .current_dir(repo_path)
                 .args(&["push", "-v", remote, branch])
