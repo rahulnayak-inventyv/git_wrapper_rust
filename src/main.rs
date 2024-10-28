@@ -27,6 +27,23 @@ pub fn git_status(repo_path: &str) -> Result<std::process::Output, std::io::Erro
     // }
 }
 
+fn get_current_branch(repo_path: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .current_dir(repo_path)
+        .args(&["branch", "--show-current"])
+        .output()
+        .map_err(|e| format!("Failed to execute git command: {}", e))?;
+
+    if output.status.success() {
+        let branch = String::from_utf8(output.stdout)
+            .map_err(|e| format!("Failed to parse branch name: {}", e))?;
+        Ok(branch.trim().to_string())
+    } else {
+        let err_msg =
+            String::from_utf8(output.stderr).unwrap_or_else(|_| "Unknown error".to_string());
+        Err(format!("Git command failed: {}", err_msg))
+    }
+}
 pub fn git_pull(
     repo_path: &str,
     remote: &str,
@@ -38,6 +55,36 @@ pub fn git_pull(
         return Err(format!("Invalid repository path: {}", repo_path.display()).into());
     }
 
+    let current_branch = get_current_branch(repo_path.to_str().unwrap());
+    match current_branch {
+        Ok(branch_name) => {
+            if branch_name.trim() != branch {
+                let check_out_branch = Command::new("git")
+                    .current_dir(repo_path)
+                    .args(&["checkout", branch])
+                    .output();
+                match check_out_branch {
+                    Ok(op) => {
+                        if !op.status.success() {
+                            return Err(format!(
+                                "Failed to checkout branch: {}",
+                                String::from_utf8_lossy(&op.stderr)
+                            )
+                            .into());
+                        } else {
+                            println!("Successfully checked out branch: {}", branch);
+                        }
+                    }
+                    Err(err) => {
+                        return Err(format!("Failed to checkout branch: {}", err).into());
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            return Err(format!("Failed to get current branch: {}", err).into());
+        }
+    }
     let pull_op = Command::new("git")
         .current_dir(repo_path)
         .args(&["pull", "-v", remote, branch])
@@ -75,7 +122,6 @@ pub fn git_push(
     if !repo_path.exists() || !repo_path.is_dir() {
         return Err(format!("Invalid repository path: {}", repo_path.display()).into());
     }
-
     // Step 1: Pull latest changes from remote
     match git_pull(repo_path.to_str().unwrap(), remote, branch) {
         Ok(_) => {
